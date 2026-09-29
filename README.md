@@ -15,6 +15,17 @@ CaptionGuard CN 是一个面向 Adobe Premiere Pro 的中文优先、本地运�
 5. 应用术语表、中文断句和低置信度标记；
 6. 在面板预览并保存 `.srt` 文件。
 
+## Windows EXE（推荐使用方式）
+
+发布版 `CaptionGuard-CN.exe` 同时包含本地转写服务和 Premiere UXP 插件安装包。运行后会常驻 Windows 系统托盘。普通用户不需要 UXP Developer Tool：
+
+1. 运行 `CaptionGuard-CN.exe`，本地服务会自动启动；
+2. 首次使用时点击“安装 Premiere 插件”，并在 Creative Cloud Desktop 中确认安装；
+3. 打开 Premiere，进入“窗口 → UXP 插件 → CaptionGuard CN”；
+4. 使用期间保持 `CaptionGuard-CN.exe` 运行。
+
+右键系统托盘中的 CaptionGuard 图标，可以检查服务、安装 Premiere 插件、启用登录后自动启动或退出。UXP Developer Tool 仅用于源码开发和生成 `.ccx` 发布包。
+
 ## 环境要求
 
 - Windows 10/11（当前 MVP 首要支持平台）
@@ -52,6 +63,16 @@ node --test plugin/tests/timeline.test.js
 7. 在 Premiere 中设置入点和出点，然后点击“导出时间线并转写”。未设置有效入出点时会导出完整序列。
 
 修改 `manifest.json` 后需要在 UXP Developer Tool 中卸载再重新加载插件。
+
+## 构建 Windows 发布版
+
+运行完整构建脚本：
+
+```powershell
+.\scripts\build_release.ps1
+```
+
+脚本会先根据 `plugin/` 生成 `.ccx`，再将独立的 Python 3.12 运行环境、本地转写服务和插件安装包封装进一个 Windows 启动程序。输出文件为 `dist/CaptionGuard-CN.exe`，`.ccx` 已内置，无需随 EXE 单独分发。首次运行会把运行组件释放到当前用户的本地应用目录。发布前也可以使用 UXP Developer Tool 的 **Package** 功能重新生成并验证 `dist/ccx/` 中的包。
 
 ## 当前限制
 

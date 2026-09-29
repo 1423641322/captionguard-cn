@@ -2,11 +2,15 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+.pytest-tmp/
 .ruff_cache/
 .venv/
+.build-python312/
 dist/
 build/
 models/
 *.ccx
 *.srt
-
+*.spec.bak
+nuitka-crash-report.xml
+pyinstaller-build.log
