@@ -47,3 +47,12 @@ class HealthResponse(BaseModel):
     service: str = "captionguard-cn"
     version: str
 
+
+class LanguageOption(BaseModel):
+    code: str
+    name: str
+
+
+class LanguageOptionsResponse(BaseModel):
+    languages: list[LanguageOption]
+

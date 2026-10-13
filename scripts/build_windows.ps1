@@ -7,6 +7,7 @@ $PayloadRoot = Join-Path $BuildRoot "payload"
 $PythonTarget = Join-Path $PayloadRoot "python"
 $PayloadArchive = Join-Path $BuildRoot "payload.zip"
 $OutputFile = Join-Path $ProjectRoot "dist\CaptionGuard-CN.exe"
+$IconFile = Join-Path $ProjectRoot "assets\captionguard.ico"
 $Compiler = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 $env:PYTHONNOUSERSITE = "1"
 
@@ -15,6 +16,9 @@ if (-not (Get-ChildItem $CcxDirectory -Filter *.ccx -ErrorAction SilentlyContinu
 }
 if (-not (Test-Path -LiteralPath $Compiler)) {
     throw "The Windows .NET Framework C# compiler was not found."
+}
+if (-not (Test-Path -LiteralPath $IconFile)) {
+    throw "Missing Windows application icon: $IconFile"
 }
 
 $BuildPython = & (Join-Path $PSScriptRoot "prepare_build_python.ps1") | Select-Object -Last 1
@@ -97,6 +101,7 @@ $LauncherSource = Join-Path $ProjectRoot "launcher\Program.cs"
     /target:winexe `
     /platform:x64 `
     /optimize+ `
+    "/win32icon:$IconFile" `
     "/reference:$CompressionAssembly" `
     "/reference:$CompressionFileSystemAssembly" `
     "/reference:$WindowsFormsAssembly" `

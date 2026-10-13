@@ -6,6 +6,14 @@ const timeline = globalThis.CaptionGuardTimeline;
 
 const API_BASE = "http://127.0.0.1:8765";
 const PRESET_TOKEN_KEY = "captionguard.audioPresetToken";
+const COMMON_LANGUAGE_CODES = ["zh", "en", "yue", "ja", "ko"];
+const COMMON_LANGUAGE_LABELS = {
+  zh: "中文",
+  en: "English",
+  yue: "粤语 / Cantonese",
+  ja: "日本語 / Japanese",
+  ko: "한국어 / Korean"
+};
 
 let selectedAudio = null;
 let selectedPreset = null;
@@ -57,6 +65,43 @@ async function checkService() {
   } catch (error) {
     setServiceState(false, "无法连接 127.0.0.1:8765，请先启动本地服务。");
     return false;
+  }
+}
+
+function appendLanguageOption(parent, code, label) {
+  const option = document.createElement("option");
+  option.value = code;
+  option.textContent = label;
+  parent.appendChild(option);
+}
+
+async function loadLanguageOptions() {
+  const select = byId("language");
+  const selected = select.value || "auto";
+  try {
+    const response = await fetch(`${API_BASE}/v1/languages`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const byCode = new Map(data.languages.map((item) => [item.code, item.name]));
+
+    select.innerHTML = "";
+    appendLanguageOption(select, "auto", "自动检测（多语言）");
+    appendLanguageOption(select, "zh-en", "中文 + English 混合增强");
+
+    COMMON_LANGUAGE_CODES.forEach((code) => {
+      if (byCode.has(code)) appendLanguageOption(select, code, COMMON_LANGUAGE_LABELS[code]);
+    });
+
+    data.languages.forEach(({ code, name }) => {
+      if (!COMMON_LANGUAGE_CODES.includes(code)) {
+        appendLanguageOption(select, code, `${name} (${code})`);
+      }
+    });
+    select.value = selected === "auto" || selected === "zh-en" || byCode.has(selected)
+      ? selected
+      : "auto";
+  } catch (_) {
+    // Keep the built-in common-language choices when the local service is unavailable.
   }
 }
 
@@ -254,7 +299,7 @@ async function initialize() {
   byId("transcribe").addEventListener("click", transcribeSelectedAudio);
   byId("save-srt").addEventListener("click", saveSrt);
   updateButtons();
-  await Promise.all([checkService(), restorePreset(), refreshSequence()]);
+  await Promise.all([checkService(), loadLanguageOptions(), restorePreset(), refreshSequence()]);
 }
 
 entrypoints.setup({

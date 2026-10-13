@@ -20,6 +20,7 @@ from .desktop_support import API_HOST, API_PORT, HEALTH_URL, find_ccx, read_heal
 APP_NAME = "CaptionGuard CN"
 RUN_KEY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 RUN_VALUE_NAME = "CaptionGuardCN"
+ICON_PATH = Path(__file__).with_name("assets") / "captionguard.png"
 
 
 def _message(text: str, *, error: bool = False) -> None:
@@ -28,12 +29,14 @@ def _message(text: str, *, error: bool = False) -> None:
 
 
 def _create_icon(healthy: bool) -> Image.Image:
-    image = Image.new("RGBA", (64, 64), (24, 28, 38, 255))
+    try:
+        with Image.open(ICON_PATH) as source:
+            image = source.convert("RGBA").resize((64, 64), Image.Resampling.LANCZOS)
+    except OSError:
+        image = Image.new("RGBA", (64, 64), (23, 59, 120, 255))
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((6, 6, 58, 58), radius=13, fill=(42, 99, 235, 255))
-    draw.text((14, 15), "CG", fill="white", stroke_width=1)
     indicator = (39, 196, 98, 255) if healthy else (245, 158, 11, 255)
-    draw.ellipse((44, 44, 60, 60), fill=indicator, outline="white", width=2)
+    draw.ellipse((45, 45, 61, 61), fill=indicator, outline="white", width=2)
     return image
 
 

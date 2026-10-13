@@ -17,7 +17,14 @@ class EngineResult:
 
 class TranscriptionEngine(Protocol):
     def transcribe(
-        self, audio_path: Path, *, language: str | None, hotwords: str | None
+        self,
+        audio_path: Path,
+        *,
+        language: str | None,
+        hotwords: str | None,
+        multilingual: bool = False,
+        initial_prompt: str | None = None,
+        language_detection_segments: int = 1,
     ) -> EngineResult: ...
 
 
@@ -33,12 +40,22 @@ class FasterWhisperEngine:
         self._model = WhisperModel(model_size, device="auto", compute_type="auto")
 
     def transcribe(
-        self, audio_path: Path, *, language: str | None, hotwords: str | None
+        self,
+        audio_path: Path,
+        *,
+        language: str | None,
+        hotwords: str | None,
+        multilingual: bool = False,
+        initial_prompt: str | None = None,
+        language_detection_segments: int = 1,
     ) -> EngineResult:
         segments, info = self._model.transcribe(
             str(audio_path),
             language=language,
             hotwords=hotwords or None,
+            initial_prompt=initial_prompt,
+            multilingual=multilingual,
+            language_detection_segments=language_detection_segments,
             vad_filter=True,
             word_timestamps=True,
             beam_size=5,

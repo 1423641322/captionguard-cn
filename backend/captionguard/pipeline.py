@@ -5,8 +5,12 @@ from collections.abc import Mapping, Sequence
 
 from .models import RawSegment, SubtitleSegment
 
-_BREAK_AFTER = re.compile(r"(?<=[。！？!?；;，,、])")
+_CJK_BREAK_AFTER = re.compile(r"(?<=[。！？!?；;，,、])")
+_SPACED_BREAK_AFTER = re.compile(r"(?<=[。！？.!?；;：:])\s*")
 _SPACE_RUN = re.compile(r"\s+")
+_CJK_CHARACTER = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")
+_LATIN_CHARACTER = re.compile(r"[A-Za-z]")
+_CJK_LANGUAGES = {"zh", "yue", "ja"}
 
 
 def apply_glossary(text: str, glossary: Mapping[str, str]) -> str:
@@ -24,17 +28,43 @@ def normalize_text(text: str) -> str:
     return text
 
 
-def split_text(text: str, max_chars: int) -> list[str]:
-    """Split Chinese-first subtitle text while preferring punctuation boundaries."""
+def recommended_max_chars(language: str | None, text: str = "") -> int:
+    if language == "zh-en":
+        return 32
+    if language in _CJK_LANGUAGES:
+        return 20
+    if language == "ko":
+        return 30
+    if language is None and _CJK_CHARACTER.search(text):
+        return 20
+    return 42
+
+
+def _uses_spaced_layout(text: str, language: str | None) -> bool:
+    if language == "zh-en":
+        return True
+    if language is None:
+        return bool(_LATIN_CHARACTER.search(text) and " " in text)
+    if language not in _CJK_LANGUAGES:
+        return True
+    return bool(_LATIN_CHARACTER.search(text) and " " in text)
+
+
+def split_text(text: str, max_chars: int = 0, *, language: str | None = None) -> list[str]:
+    """Split subtitles using CJK or space-delimited language conventions."""
     text = normalize_text(text)
     if not text:
         return []
-    if max_chars < 4:
+    if max_chars == 0:
+        max_chars = recommended_max_chars(language, text)
+    elif max_chars < 4:
         raise ValueError("max_chars must be at least 4")
     if len(text) <= max_chars:
         return [text]
 
-    clauses = [part for part in _BREAK_AFTER.split(text) if part]
+    spaced_layout = _uses_spaced_layout(text, language)
+    break_pattern = _SPACED_BREAK_AFTER if spaced_layout else _CJK_BREAK_AFTER
+    clauses = [part for part in break_pattern.split(text) if part]
     pieces: list[str] = []
     current = ""
 
@@ -48,8 +78,10 @@ def split_text(text: str, max_chars: int) -> list[str]:
         clause = clause.strip()
         if not clause:
             continue
-        if len(current) + len(clause) <= max_chars:
-            current += clause
+        separator = " " if spaced_layout and current else ""
+        candidate = current + separator + clause
+        if len(candidate) <= max_chars:
+            current = candidate
             continue
         flush()
         while len(clause) > max_chars:
@@ -83,7 +115,8 @@ def build_subtitles(
     raw_segments: Sequence[RawSegment],
     *,
     glossary: Mapping[str, str] | None = None,
-    max_chars: int = 20,
+    max_chars: int = 0,
+    language: str | None = None,
     confidence_threshold: float = 0.72,
     minimum_duration: float = 0.45,
 ) -> list[SubtitleSegment]:
@@ -92,11 +125,11 @@ def build_subtitles(
 
     for raw in raw_segments:
         text = apply_glossary(normalize_text(raw.text), glossary)
-        pieces = split_text(text, max_chars)
+        pieces = split_text(text, max_chars, language=language)
         if not pieces:
             continue
 
-        total_weight = sum(max(len(piece), 1) for piece in pieces)
+        total_weight = sum(_text_weight(piece) for piece in pieces)
         duration = max(raw.end - raw.start, 0.001)
         cursor = raw.start
         confidence = segment_confidence(raw)
@@ -105,14 +138,14 @@ def build_subtitles(
             if piece_index == len(pieces) - 1:
                 piece_end = raw.end
             else:
-                piece_end = cursor + duration * (len(piece) / total_weight)
+                piece_end = cursor + duration * (_text_weight(piece) / total_weight)
 
             reasons: list[str] = []
             if confidence is not None and confidence < confidence_threshold:
                 reasons.append("low_confidence")
             if piece_end - cursor < minimum_duration:
                 reasons.append("too_short")
-            if len(piece) == 1:
+            if _text_weight(piece) == 1:
                 reasons.append("single_character")
 
             subtitles.append(
@@ -129,4 +162,8 @@ def build_subtitles(
             cursor = piece_end
 
     return subtitles
+
+
+def _text_weight(text: str) -> int:
+    return max(len(_SPACE_RUN.sub("", text)), 1)
 

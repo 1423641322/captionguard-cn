@@ -1,6 +1,11 @@
 import pytest
 from captionguard.models import RawSegment, RawWord
-from captionguard.pipeline import apply_glossary, build_subtitles, split_text
+from captionguard.pipeline import (
+    apply_glossary,
+    build_subtitles,
+    recommended_max_chars,
+    split_text,
+)
 
 
 def test_glossary_uses_longest_key_first() -> None:
@@ -10,6 +15,19 @@ def test_glossary_uses_longest_key_first() -> None:
 def test_split_text_prefers_chinese_punctuation() -> None:
     text = "这是第一句话，这是第二句话。最后一句。"
     assert split_text(text, 10) == ["这是第一句话，", "这是第二句话。", "最后一句。"]
+
+
+def test_split_text_preserves_english_word_spacing() -> None:
+    text = "CaptionGuard creates accurate captions. English spacing stays readable."
+    pieces = split_text(text, 42, language="en")
+    assert pieces == ["CaptionGuard creates accurate captions.", "English spacing stays readable."]
+    assert all(not piece.startswith(" ") and not piece.endswith(" ") for piece in pieces)
+
+
+def test_automatic_caption_length_is_language_aware() -> None:
+    assert recommended_max_chars("zh") == 20
+    assert recommended_max_chars("zh-en") == 32
+    assert recommended_max_chars("en") == 42
 
 
 def test_build_subtitles_marks_low_confidence() -> None:

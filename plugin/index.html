@@ -29,7 +29,8 @@
         <label>
           语言
           <select id="language">
-            <option value="auto">自动检测</option>
+            <option value="auto">自动检测（多语言）</option>
+            <option value="zh-en">中文 + English 混合增强</option>
             <option value="zh">中文</option>
             <option value="en">English</option>
             <option value="ja">日本語</option>
@@ -47,8 +48,8 @@
             </select>
           </label>
           <label>
-            每条最多字数
-            <input id="max-chars" type="number" min="4" max="80" value="20" />
+            每条最多字符（0 = 按语言自动优化）
+            <input id="max-chars" type="number" min="0" max="120" value="0" />
           </label>
         </div>
         <label>

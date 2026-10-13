@@ -14,7 +14,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .engine import FasterWhisperEngine
-from .models import HealthResponse, TranscriptionResponse
+from .languages import (
+    AUTO_LANGUAGE,
+    CHINESE_ENGLISH_LANGUAGE,
+    WHISPER_LANGUAGES,
+    is_supported_language,
+)
+from .models import (
+    HealthResponse,
+    LanguageOption,
+    LanguageOptionsResponse,
+    TranscriptionResponse,
+)
 from .pipeline import build_subtitles
 from .srt import render_srt
 
@@ -41,6 +52,15 @@ def health() -> HealthResponse:
     return HealthResponse(version=__version__)
 
 
+@app.get("/v1/languages", response_model=LanguageOptionsResponse)
+def languages() -> LanguageOptionsResponse:
+    options = [
+        LanguageOption(code=code, name=name)
+        for code, name in sorted(WHISPER_LANGUAGES.items(), key=lambda item: item[1])
+    ]
+    return LanguageOptionsResponse(languages=options)
+
+
 def _parse_glossary(value: str) -> Mapping[str, str]:
     if not value.strip():
         return {}
@@ -60,12 +80,15 @@ async def transcribe(
     file: Annotated[UploadFile, File()],
     language: Annotated[str, Form()] = "auto",
     model_size: Annotated[str, Form()] = "small",
-    max_chars: Annotated[int, Form(ge=4, le=80)] = 20,
+    max_chars: Annotated[int, Form(ge=0, le=120)] = 0,
     confidence_threshold: Annotated[float, Form(ge=0.0, le=1.0)] = 0.72,
     glossary_json: Annotated[str, Form()] = "{}",
 ) -> TranscriptionResponse:
     if model_size not in ALLOWED_MODEL_SIZES:
         raise HTTPException(status_code=422, detail="Unsupported model_size")
+    language = language.strip().lower()
+    if not is_supported_language(language):
+        raise HTTPException(status_code=422, detail="Unsupported language")
     glossary = _parse_glossary(glossary_json)
 
     suffix = Path(file.filename or "audio.wav").suffix[:10] or ".wav"
@@ -82,10 +105,18 @@ async def transcribe(
 
         try:
             engine = _get_engine(model_size)
+            multilingual = language in {AUTO_LANGUAGE, CHINESE_ENGLISH_LANGUAGE}
             result = engine.transcribe(
                 temp_path,
-                language=None if language == "auto" else language,
+                language=None if multilingual else language,
                 hotwords=", ".join(glossary.values()),
+                multilingual=multilingual,
+                initial_prompt=(
+                    "中文 English"
+                    if language == CHINESE_ENGLISH_LANGUAGE
+                    else None
+                ),
+                language_detection_segments=5 if multilingual else 1,
             )
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -94,6 +125,7 @@ async def transcribe(
             result.segments,
             glossary=glossary,
             max_chars=max_chars,
+            language=language if language == CHINESE_ENGLISH_LANGUAGE else result.language,
             confidence_threshold=confidence_threshold,
         )
         return TranscriptionResponse(
